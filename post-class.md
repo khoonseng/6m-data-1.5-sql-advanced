@@ -122,6 +122,6 @@ select t.client_name,
 from client_total_claim_amt t
 inner join rank_clients_by_claim r on t.client_id = r.client_id
 inner join avg_amt_by_car_type a on a.client_id = t.client_id
-group by t.client_name, r.state, r.client_claim_amt, r.state_rank
+group by t.client_name, r.state, r.client_claim_amt, r.state_rank -- required for STRING_AGG() concatenate function
 order by r.state, r.state_rank
 ```
