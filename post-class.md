@@ -48,7 +48,21 @@ Using a Common Table Expression (CTE), write a SQL query to return a table conta
 Answer:
 
 ```sql
-
+with avg_value_by_car_use as (
+    select car_use,
+           round(avg(resale_value),2) as average_value
+    from car
+    group by car_use
+)
+SELECT c.id,
+       c.resale_value,
+       c.car_use,
+       v.average_value as avg_value
+from car c
+inner join avg_value_by_car_use v
+on c.car_use = v.car_use
+where c.resale_value < v.average_value
+order by c.id
 ```
 
 # **Level Up: The Insurance Auditor Project**
