@@ -22,8 +22,7 @@ select cl.id,
        c.car_type,
        c.car_use
 from claim cl
-inner join car c
-on cl.car_id = c.id;
+inner join car c on cl.car_id = c.id;
 ```
 
 ### Question 2
@@ -59,8 +58,7 @@ SELECT c.id,
        c.car_use,
        v.average_value as avg_value
 from car c
-inner join avg_value_by_car_use v
-on c.car_use = v.car_use
+inner join avg_value_by_car_use v on c.car_use = v.car_use
 where c.resale_value < v.average_value
 order by c.id
 ```
@@ -79,3 +77,51 @@ Create a comprehensive SQL report that answers the following in a single script 
 
 Submission:  
 A single .sql file with comments explaining your logic.
+
+```sql
+-- Market Comparison: For every claim, show the claim_amt alongside the average claim amount for that specific car_type.
+-- need to compute average claim amount based on car type -> use partition without specific sorting
+with avg_amt_by_car_type as (
+    select cl.id as claim_id,
+           cl.client_id,
+           c.car_type, 
+           cl.claim_amt,
+           avg(cl.claim_amt) over (partition by c.car_type) as avg_claim_amt
+    from claim cl
+    inner join car c on cl.car_id = c.id
+),
+-- Risk Ranking: Within each state, rank the clients by their total claim amounts.
+-- need to compute total claim amount for each client and state -> use group by instead of window function since we do not need any breakdown of details
+client_total_claim_amt as (
+    select cli.id as client_id,
+           concat(cli.first_name, ' ', cli.last_name) as client_name,
+           a.state,
+           sum(cl.claim_amt) as client_claim_amt
+    from claim cl
+    inner join client cli on cl.client_id = cli.id
+    inner join address a on cli.address_id = a.id
+    group by cli.id, client_name, a.state
+),
+--Efficiency: Only show the top 2 highest-claiming clients per state.
+-- need to compute rank based on state and claim amount-> use partition and sort by claim amount
+rank_clients_by_claim as (
+    select state,
+           client_id,
+           client_claim_amt,
+           RANK() OVER (partition by state order by client_claim_amt desc) as state_rank
+    from client_total_claim_amt
+    qualify state_rank <= 2
+    order by state, state_rank
+)
+--Final Output: The table should include: Client Name, State, Car Type, Total Claimed, State Rank.
+select t.client_name,
+       r.state,
+       STRING_AGG(distinct a.car_type, ', ' order by a.car_type asc) as car_types, -- to display multiple car types from the same client in a single row
+       r.client_claim_amt as total_claimed,
+       r.state_rank
+from client_total_claim_amt t
+inner join rank_clients_by_claim r on t.client_id = r.client_id
+inner join avg_amt_by_car_type a on a.client_id = t.client_id
+group by t.client_name, r.state, r.client_claim_amt, r.state_rank
+order by r.state, r.state_rank
+```
